@@ -9,8 +9,12 @@
   "author": "poozhu",
   "license": "ISC",
   "dependencies": {
-    "axios": "^0.32.0",
+    "axios": "^1.19.0",
     "cheerio": "^1.2.0",
-    "express": "^4.16.4"
+    "dotenv": "^17.4.2",
+    "express": "^4.16.4",
+    "https-proxy-agent": "^5.0.1",
+    "marked": "^18.0.9",
+    "pg": "^8.23.0"
   }
 }

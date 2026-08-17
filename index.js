@@ -1,67 +1,90 @@
-const cheerio = require("cheerio");
-const axios = require("axios");
 const express = require("express");
+const { runCrawl, pool } = require("./crawler");
+
 const app = express();
 
-async function getData(time, language) {
-    const url = "https://github.com/trending" + (!!language ? "/" + language : "") + "?since=" + time; // 拼接请求的页面链接
-    // console.log(url); // 检查请求的 url 地址
-    const response = await axios.get(url).catch(function (error) {
-        return error;
-    });
+// ===== 基础配置 =====
+const PORT = process.env.PORT || 3000;
+const CACHE_TTL_MS = (parseInt(process.env.CACHE_TTL_SEC) || 600) * 1000; // 默认缓存 10 分钟
 
-    // 不存在 data 字段时，直接返回 （请求出现了错误）
-    if (!response.data) {
-        return response;
+// ===== 列表接口逻辑：查缓存 -> 过期则爬取并存库 =====
+async function handleList(req, res) {
+    const time = req.params.time;
+    const language = req.params.language || "";
+    const date = req.query.date;
+
+    if (!["daily", "weekly", "monthly"].includes(time)) {
+        return res.status(400).json({ error: "time 参数必须是 daily/weekly/monthly" });
     }
 
-    const $ = cheerio.load(response.data); // 传入页面内容
-    let items_array = [];
-    $(".Box .Box-row").each(function () {
-        // 像jQuery一样获取对应节点值
-        let obj = {};
-        obj.title = $(this).find("h1").text().replace(/\s/g, ""); // 获取标题
-        obj.links = "https://github.com/" + obj.title; // 拼接链接
-        obj.description = $(this).find("p").text().trim(); // 获取获取描述
-        obj.language = $(this).find(">.f6 .repo-language-color").siblings().text(); // 获取语言
-        obj.stars = $(this).find(">.f6 a").eq(0).text().trim(); // 获取 start 数
-        obj.forks = $(this).find(">.f6 a").eq(1).text().trim(); // 获取分支数
-        obj.info = $(this).find(">.f6 .float-sm-right").text().trim(); // 获取对应时期 star 信息
-        obj.avatar = $(this).find(">.f6 img").eq(0).attr("src"); // 获取首位作者头像
-        items_array.push(obj);
+    // 指定历史日期：返回该日期最新一批的全部快照
+    if (date) {
+        const r = await pool.query(
+            `SELECT s.* FROM trending_snapshots s
+             JOIN (SELECT max(fetched_at) AS t FROM trending_snapshots
+                   WHERE dimension = $1 AND language = $2 AND fetched_at::date = $3::date) m
+               ON s.fetched_at = m.t
+             WHERE s.dimension = $1 AND s.language = $2
+             ORDER BY s.id`,
+            [time, language, date]
+        );
+        if (!r.rows.length) return res.status(404).json({ error: "该日期没有快照数据" });
+        return res.json(r.rows);
+    }
 
-        // 检测各项数据是否正确
-        // console.log(obj);
-    });
+    // 取最新一批的时间
+    const latest = await pool.query(
+        `SELECT max(fetched_at) AS t FROM trending_snapshots WHERE dimension = $1 AND language = $2`,
+        [time, language]
+    );
+    const lastTime = latest.rows[0].t;
+    const needRefresh = !lastTime || Date.now() - new Date(lastTime).getTime() > CACHE_TTL_MS;
 
-    // 回归按新增 star 数量排名
-    items_array.sort((item1, item2) => {
-        return parseInt(item2.info.replace(/,/g, "")) - parseInt(item1.info.replace(/,/g, ""));
-    });
+    if (needRefresh) {
+        try {
+            await runCrawl(time, language);
+            // 统一返回入库后的快照，字段结构与缓存命中一致（language = 筛选维度，repo_language = 项目语言）
+            const r = await pool.query(
+                `SELECT * FROM trending_snapshots WHERE dimension = $1 AND language = $2
+                 AND fetched_at = (SELECT max(fetched_at) FROM trending_snapshots WHERE dimension = $1 AND language = $2)
+                 ORDER BY id`,
+                [time, language]
+            );
+            return res.json(r.rows);
+        } catch (e) {
+            console.error("[crawl] failed:", e.message);
+            if (lastTime) {
+                // 爬取失败但有历史缓存，返回旧数据兜底
+                const r = await pool.query(
+                    `SELECT * FROM trending_snapshots WHERE dimension = $1 AND language = $2 AND fetched_at = $3 ORDER BY id`,
+                    [time, language, lastTime]
+                );
+                return res.json(r.rows);
+            }
+            return res.status(502).json({ error: "爬取 GitHub 失败，且无缓存数据", message: e.message });
+        }
+    }
 
-    return items_array;
+    const r = await pool.query(
+        `SELECT * FROM trending_snapshots WHERE dimension = $1 AND language = $2 AND fetched_at = $3 ORDER BY id`,
+        [time, language, lastTime]
+    );
+    return res.json(r.rows);
 }
 
-app.get("/list/:time/:language", async (req, res) => {
-    const {
-        time, // 获取排序时间
-        language, // 获取对应语言
-    } = req.params;
-    let list = await getData(time, language); // 发起抓取
-    res.json(list); // 数据返回
+app.get("/list/:time/:language", handleList);
+app.get("/list/:time", handleList);
+app.get("/", (req, res) => handleList({ params: { time: "daily" }, query: req.query }, res));
+
+// ===== 单个项目详情（含 README + 一句话总结的历史快照）=====
+app.get("/repo/:owner/:repo", async (req, res) => {
+    const title = `${req.params.owner}/${req.params.repo}`;
+    const r = await pool.query(
+        `SELECT * FROM trending_snapshots WHERE title = $1 ORDER BY fetched_at DESC LIMIT 20`,
+        [title]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: "数据库中暂无该项目数据" });
+    res.json(r.rows);
 });
 
-app.get("/list/:time", async (req, res) => {
-    const {
-        time, // 获取排序时间
-    } = req.params;
-    let list = await getData(time); // 发起抓取
-    res.json(list); // 数据返回
-});
-
-app.get("/", async (req, res) => {
-    let list = await getData("daily"); // 发起抓取
-    res.json(list); // 数据返回
-});
-
-app.listen(3000, () => console.log("Listening on port 3000!")); // 监听3000端口
+app.listen(PORT, () => console.log(`Listening on port ${PORT}!`));
