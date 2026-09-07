@@ -5,13 +5,13 @@
 
 ## 结论速览
 
-本项目**只有 1 个环节**消耗 LLM token：**榜单爬取时给每个项目生成"一句话总结"**。
+本项目**只有 1 个环节**消耗 LLM token：**榜单爬取时对每个项目做项目分析（一句话总结 summary + 详细"解决什么问题" solves）**。
 
 其余所有环节（Star 趋势追踪、README 抓取、HTTP 接口查询、飞书推送）均**不消耗 LLM token**。
 
 | 环节 | 是否消耗 LLM token | 消耗对象 |
 |---|---|---|
-| ① 榜单爬取：一句话总结 | ✅ **是** | 豆包（火山方舟） |
+| ① 榜单爬取：项目分析（summary + solves） | ✅ **是** | 豆包（火山方舟） |
 | ② Star 趋势追踪 | ❌ 否 | GitHub REST API（免费配额） |
 | ③ README 抓取 | ❌ 否 | raw.githubusercontent.com（静态文件） |
 | ④ HTTP 接口查询 | ❌ 否 | 本机 PostgreSQL |
@@ -19,26 +19,27 @@
 
 ---
 
-## ① 唯一消耗环节：一句话总结
+## ① 唯一消耗环节：项目分析（summary + solves）
 
-位置：[crawler.js](crawler.js) 的 `summarizeWithLLM`（约 L127-162）
+位置：[crawler.js](crawler.js) 的 `analyzeProject`（约 L127-190）
 
 ### 触发时机
-- 每次爬取榜单（`node crawl.js <time>`），对列表中的项目生成中文一句话总结
-- **只对"缺少 summary 缓存"的项目调用**，已有总结的不重复调用
+- 每次爬取榜单（`node crawl.js <time>`），对列表中的项目生成分析
+- **一次 LLM 调用同时产出两个字段**：summary（一句话总结）+ solves（详细"项目解决什么问题"，50~150 字）
+- **只对缺失缓存的项目调用**（summary/solves 任一为空），已有则复用
 
 ### 输入 / 输出
 | 项 | 说明 |
 |---|---|
 | 输入 | 项目名 + description + **README 全文**（纯文本，截断 5 万字符） |
 | 输入 token 估算 | ≈ 1.5 万 ~ 2 万 token / 项目（README 是主要开销） |
-| 输出 | 一句话中文总结（max_tokens=300，实际几十 token） |
+| 输出 | JSON：`{"summary":"一句话","solves":"一段话"}`（max_tokens=500） |
 | 模型 | doubao-seed-2.0-code，thinking 禁用（防超时） |
 
 ### 缓存保护（降低消耗的关键）
 [crawler.js](crawler.js) 的 `fillReadmeSummary`：
 1. **README 缓存复用**：库里已有非空 README 则直接复用，不重复抓取、不重复喂给 LLM
-2. **summary 缓存复用**：库里已有总结则跳过 LLM 调用
+2. **summary/solves 缓存复用**：任一已有则只补缺失字段；都有则完全跳过 LLM
 
 > 效果：定时任务实际**只对首次出现的新项目**调 LLM，重复上榜的老项目 0 消耗。
 
@@ -46,6 +47,8 @@
 - 榜单约 20 个项目/天，其中**首次出现**的通常只有几个
 - 极端情况（全部新项目）：20 × ~2 万 token ≈ 40 万输入 token / 天
 - 常态（少量新项目）：通常几万 token / 天以内
+
+> 历史补录：`node backfill_solves.js` 对库中全部去重项目补录 solves，一次性约 176 × ~2 万 ≈ 350 万输入 token。仅手动执行。
 
 ---
 
@@ -75,7 +78,7 @@
 | 方案 | 做法 | 效果 |
 |---|---|---|
 | 调低 README 截断 | `fetchReadme` 中 `text.slice(0, 50000)` → `20000` | 输入 token 省 ~60%，总结质量略降 |
-| 只喂 description | `summarizeWithLLM` 不传 README，只传项目描述 | 输入 token 降到几百/项目，总结变粗略 |
+| 只喂 description | `analyzeProject` 不传 README，只传项目描述 | 输入 token 降到几百/项目，分析变粗略 |
 | 收紧缓存 TTL | 调整缓存策略，减少重复抓取 | 降低 README 抓取量（非 token） |
 
 > 当前配置已含缓存复用，属于"token 消耗最小化"的默认状态，一般无需额外优化。

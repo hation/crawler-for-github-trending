@@ -39,7 +39,7 @@ fillReadmeSummary(item)       并发 4
   → 查库：该项目是否已有非空 README？
      有 → 复用缓存，不重复抓取
      无 → fetchReadme 抓 raw.githubusercontent.com，marked 转纯文本，限 5 万字符
-  → summary 缺失时才调用豆包 LLM（只喂 README 全文，禁用思考链防超时）
+  → summary/solves 任一缺失才调用豆包 LLM（一次调用生成两项，喂 README 全文，禁用思考链防超时）
 
 saveSnapshot(list, time, lang)  事务批量写入 trending_snapshots
 
@@ -51,7 +51,7 @@ pushToFeishu(list, label)     仅综合榜（无语言参数）推送，聚合�
 |---|---|
 | 反爬 | 浏览器 UA + 系统代理（HTTPS_PROXY=127.0.0.1:10808），GitHub 需走代理 |
 | README 纯文本化 | marked 解析 Markdown → 去样式代码，只留内容本身，限 5 万字符 |
-| 缓存复用 | README 只要库里有非空就复用；summary 缺失才调 LLM（省 token、省请求） |
+| 缓存复用 | README 只要库里有非空就复用；summary/solves 任一缺失才调 LLM（省 token、省请求） |
 | 飞书消息格式 | `post.zh_cn`，每条项目 3 行：📌标题链接 / 💡一句话总结 / ⭐star ⬆新增 · 🗂语言 |
 | 等待推送 | `await pushToFeishu`，确保进程退出前消息已发出（fire-and-forget 会丢消息） |
 
@@ -66,6 +66,7 @@ pushToFeishu(list, label)     仅综合榜（无语言参数）推送，聚合�
 | avatar | 头像 URL |
 | readme | README 纯文本（≤5 万字符） |
 | summary | 豆包生成的一句话中文总结 |
+| solves | 豆包生成的详细"项目解决什么问题"（一段话 50~150 字，面向谁/痛点/方案） |
 | fetched_at | 抓取时间（同一项目多次抓取 → 历史快照） |
 
 ---
