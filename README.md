@@ -124,6 +124,7 @@ node track.js monthly    # 采样 C 级（冷淡）
 
 - [ALGORITHM.md](ALGORITHM.md) —— 核心算法说明（爬取流程、动态热度分级、升降级规则、可调参数）
 - [SCHEDULED_TASKS.md](SCHEDULED_TASKS.md) —— 定时任务配置备份与迁移指南
+- [TOKEN_USAGE.md](TOKEN_USAGE.md) —— Token 消耗说明（唯一消耗环节 + 估算 + 优化手段）
 
 ## 数据说明
 
