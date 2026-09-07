@@ -87,4 +87,20 @@ app.get("/repo/:owner/:repo", async (req, res) => {
     res.json(r.rows);
 });
 
+// ===== 单个项目 Star 趋势（star_history 采样数据）=====
+app.get("/trend/:owner/:repo", async (req, res) => {
+    const title = `${req.params.owner}/${req.params.repo}`;
+    const r = await pool.query(
+        `SELECT stars, fetched_at FROM star_history WHERE title = $1 ORDER BY fetched_at ASC`,
+        [title]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: "该项目暂无趋势数据" });
+    // 计算每段涨速（与上次采样的差值，可能为负）
+    const points = r.rows.map((row, i) => {
+        const delta = i === 0 ? null : row.stars - r.rows[i - 1].stars;
+        return { stars: Number(row.stars), fetched_at: row.fetched_at, delta_stars: delta };
+    });
+    res.json({ title, total_points: points.length, points });
+});
+
 app.listen(PORT, () => console.log(`Listening on port ${PORT}!`));
