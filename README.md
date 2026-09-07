@@ -1,70 +1,132 @@
-# crawler-for-github-trending  
-50 lines, minimalist node crawler for [GitHub Trending](https://github.com/trending?since=daily).  
-一个50行的 node 爬虫，一个简单的 [axios](https://github.com/axios/axios), [express](https://github.com/expressjs/express), [cheerio](https://github.com/cheeriojs/cheerio) 体验项目。  
+# crawler-for-github-trending
 
-## Usage  
-一篇简单的介绍 https://juejin.cn/post/6844903827024396296
+基于 axios + express + cheerio 的 GitHub Trending 爬虫，在原作者 50 行版本基础上扩展为完整的**榜单采集 + Star 趋势追踪**系统。
 
-首先保证电脑已存在 node10.0+ 环境，然后  
+## 功能特性
 
-1.拉取本项目  
+- **榜单爬取**：抓取 GitHub Trending daily / weekly / monthly 榜，按新增 star 排序（原作者逻辑）
+- **README 存储**：每个项目抓取 README 纯文本（去样式代码，限 5 万字符），相同项目自动复用缓存，不重复抓取
+- **一句话总结**：喂 README 全文给火山豆包 LLM，生成中文一句话总结
+- **飞书推送**：每次拉取成功聚合推送到飞书群（项目名 / 地址 / 一句话总结 / 当前 star / 涨了多少 star / 项目语言）
+- **Star 趋势追踪**：动态热度分级（A 每天 / B 每周六 / C 每月 28 日），连续采样项目 star 变化曲线，热门高频、冷门自动降频
+- **HTTP 接口**：榜单查询（含历史日期）、项目详情、star 趋势
+- **系统级定时任务**：TRAE 定时自动化调度（非应用内 cron），到点启动独立 CLI 进程
+
+## 架构
+
 ```
-git clone https://github.com/poozhu/crawler-for-github-trending.git
+┌─────────────────────────────┐      ┌──────────────────────────────┐
+│  榜单爬取（crawler.js）       │      │  Star 趋势追踪（tracker.js）   │
+│  每天/周六/28日 抓 Trending   │      │  每天/周六/28日 采样 star      │
+│  → 入库 + 飞书推送            │      │  → star_history + 动态分级     │
+└─────────────────────────────┘      └──────────────────────────────┘
+            │ 写入                                │ 写入
+            ▼                                    ▼
+   trending_snapshots                   star_history / project_track_level
+   （榜单快照，含 README/总结）            （连续采样曲线 + 热度级别）
+```
+
+## 快速开始
+
+### 环境要求
+- Node.js 18+
+- PostgreSQL（本机，库名 `github_trending`）
+- `gh` CLI 已登录（趋势追踪采样 GitHub API 需要 token）
+- 可选：飞书群自定义机器人 webhook、火山豆包 API Key
+
+### 1. 安装与配置
+```bash
+git clone https://github.com/hation/crawler-for-github-trending.git
 cd crawler-for-github-trending
-npm i
-node index.js
-```
-2.或者下载本项目压缩包，解压
-```
-cd crawler-for-github-trending-master  // 进入项目文件夹
-npm i
-node index.js
+npm install
+cp .env.example .env   # 按需填写，见「环境变量」
 ```
 
-## Examples  
-当启动项目后，可以看到控制台输出
+### 2. 初始化数据库
+```bash
+psql -c "CREATE DATABASE github_trending;"
+psql -d github_trending -c "
+CREATE TABLE trending_snapshots (
+  id BIGSERIAL PRIMARY KEY,
+  dimension VARCHAR(10) NOT NULL,
+  language VARCHAR(50) NOT NULL DEFAULT '',
+  title VARCHAR(255) NOT NULL,
+  links VARCHAR(255) NOT NULL,
+  description TEXT,
+  repo_language VARCHAR(50),
+  stars VARCHAR(50),
+  forks VARCHAR(50),
+  info VARCHAR(100),
+  avatar VARCHAR(500),
+  readme TEXT,
+  summary TEXT,
+  fetched_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_snap_dim_lang_time ON trending_snapshots (dimension, language, fetched_at DESC);
+"
 ```
-Listening on port 3000!
-```
-此时打开浏览器，访问 http://localhost:3000/
-```
-http://localhost:3000/list/:time/:language // time 表示周期，language 代表语言  例如：
+> `star_history` 与 `project_track_level` 表由 `track.js` 首次运行时自动创建。
 
-http://localhost:3000/list/daily  // 代表今日 可选参数：weekly,monthly
-http://localhost:3000/list/daily/JavaScript  // 代表今日的 JavaScript 分类 可选参数：任意语言
-```
-
-稍微等待即可看到爬取完毕的返回数据：
-```
-[
- {
-  "title": "lib-pku / libpku",
-  "links": "https://github.com/lib-pku/libpku",
-  "description": "贵校课程资料民间整理",
-  "language": "JavaScript",
-  "stars": "14,297",
-  "forks": "4,360",
-  "info": "3,121 stars this week"
- },
- {
-  "title": "SqueezerIO / squeezer",
-  "links": "https://github.com/SqueezerIO/squeezer",
-  "description": "Squeezer Framework - Build serverless dApps",
-  "language": "JavaScript",
-  "stars": "3,212",
-  "forks": "80",
-  "info": "2,807 stars this week"
- },
- ...
-]
+### 3. 运行 HTTP 服务
+```bash
+node index.js            # 默认端口 3000；如被占用：PORT=3001 node index.js
 ```
 
-## More
-本项目每次访问都会实时爬取数据，所以数据返回速度会比较慢，期望作为接口数据建议定时爬取到数据库。
+## 环境变量（.env）
 
-但了解项目代码可以带来以上各个 node 模块和爬虫最基础的用法和概念，希望可以帮到大家。
+| 变量 | 必填 | 说明 |
+|---|---|---|
+| `PORT` | 否 | HTTP 端口，默认 3000 |
+| `DATABASE_URL` | 否 | PostgreSQL 连接串，默认 `postgres://当前用户@localhost:5432/github_trending` |
+| `FEISHU_WEBHOOK` | 否 | 飞书群机器人 webhook，配置后拉取成功推送 |
+| `ARK_API_KEY` | 否 | 火山豆包 API Key，缺省时读 `~/.codex/auth.json` 的 `OPENAI_API_KEY` |
+| `CACHE_TTL_SEC` | 否 | 榜单接口缓存秒数，默认 600 |
 
-## Star History
+## 接口
 
-[![Star History Chart](https://api.star-history.com/svg?repos=poozhu/crawler-for-github-trending&type=Date)](https://star-history.com/#poozhu/crawler-for-github-trending&Date)
+| 接口 | 说明 |
+|---|---|
+| `GET /list/:time` | 榜单数据，time=daily/weekly/monthly；`?date=YYYY-MM-DD` 查历史某天 |
+| `GET /list/:time/:language` | 指定语言主题榜单，如 `/list/daily/python` |
+| `GET /repo/:owner/:repo` | 单个项目历史快照（含 README + 总结） |
+| `GET /trend/:owner/:repo` | star 趋势采样曲线（`star_history`），含每段涨跌 |
 
+## CLI 命令（定时任务入口）
+
+```bash
+# 榜单爬取（抓取 → 补 README/总结 → 入库 → 飞书推送）
+node crawl.js daily      # daily 榜
+node crawl.js weekly     # weekly 榜
+node crawl.js monthly    # monthly 榜
+
+# Star 趋势追踪（采样对应级别项目 + 动态调整热度级别）
+node track.js daily      # 采样 A 级（热门）
+node track.js weekly     # 采样 B 级（温和）
+node track.js monthly    # 采样 C 级（冷淡）
+```
+
+## 定时任务
+
+本项目使用 **TRAE 系统级定时自动化**（方案 B，非应用内 cron）调度，共 6 个任务：
+
+| 任务 | 时间 | 命令 |
+|---|---|---|
+| 每日 daily 榜拉取 | 每天 09:00 | `node crawl.js daily` |
+| 每周六 weekly 榜拉取 | 周六 09:30 | `node crawl.js weekly` |
+| 每月 28 日 monthly 榜拉取 | 28 日 09:30 | `node crawl.js monthly` |
+| star 趋势每日采样（A 级） | 每天 09:05 | `node track.js daily` |
+| star 趋势每周六采样（B 级） | 周六 09:35 | `node track.js weekly` |
+| star 趋势每月 28 日采样（C 级） | 28 日 09:35 | `node track.js monthly` |
+
+> 完整配置与迁移步骤见 [SCHEDULED_TASKS.md](SCHEDULED_TASKS.md)
+
+## 文档
+
+- [ALGORITHM.md](ALGORITHM.md) —— 核心算法说明（爬取流程、动态热度分级、升降级规则、可调参数）
+- [SCHEDULED_TASKS.md](SCHEDULED_TASKS.md) —— 定时任务配置备份与迁移指南
+
+## 数据说明
+
+- 同一项目在 `trending_snapshots` 中按抓取时间累积多条快照，支持历史查询
+- `star_history` 为趋势追踪的连续采样曲线，按项目+时间索引
+- 爬 GitHub Trending 与 GitHub API 需走系统代理（`HTTPS_PROXY` 环境变量），飞书与豆包国内直连
