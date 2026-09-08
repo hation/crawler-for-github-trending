@@ -7,6 +7,7 @@ const { Pool } = require("pg");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { ANALYZE_SYSTEM_PROMPT, analyzeUserPrompt } = require("./prompts");
 
 // ===== 基础配置 =====
 const PORT = process.env.PORT || 3000;
@@ -127,22 +128,15 @@ async function fetchReadme(ownerRepo) {
 async function analyzeProject(item, readme) {
     const key = getArkKey();
     if (!key) return { summary: null, solves: null };
-    // 喂 README 全文（已是纯文本）
-    const payload = `项目: ${item.title}\n描述: ${item.description || ""}\nREADME全文:\n${readme || ""}`;
+    // 喂 README 全文（已是纯文本），提示词集中管理于 src/prompts.js
+    const payload = analyzeUserPrompt(item, readme);
     try {
         const resp = await axios.post(
             `${ARK_BASE_URL}/chat/completions`,
             {
                 model: ARK_MODEL,
                 messages: [
-                    {
-                        role: "system",
-                        content:
-                            "你是 GitHub 仓库分析助手。请基于 README 分析项目，输出两项内容：\n" +
-                            "1. summary：用一句话（不超过30字，中文）总结这个项目主要解决什么问题，只输出这句话本身。\n" +
-                            "2. solves：用一段话（50~150字，中文）详细说明这个项目是给谁用的、解决什么痛点、大致怎么做。\n" +
-                            '严格以 JSON 格式输出：{"summary":"一句话","solves":"一段话"}。不要输出任何其他内容、前缀或解释。',
-                    },
+                    { role: "system", content: ANALYZE_SYSTEM_PROMPT },
                     { role: "user", content: payload },
                 ],
                 max_tokens: 500,

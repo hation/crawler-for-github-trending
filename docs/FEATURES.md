@@ -65,6 +65,7 @@
   - 关注用户新建仓库总结（[src/follow.js](../src/follow.js) `enrichCreateSummaries`）
   - 补录脚本（`src/backfill_solves.js` / `src/backfill_followed.js`）
 - **核心逻辑**：以 `thinking: { type: "disabled" }` 禁用思考链防超时，`proxy: false` 国内直连，返回 JSON `{"summary":"...","solves":"..."}` 并容错解析。
+- **提示词位置**：所有 LLM 提示词集中管理在 [src/prompts.js](../src/prompts.js)，修改后重跑对应命令即可对比效果。
 - **缓存复用**：summary/solves 任一已有则只补缺失字段，两者都有则完全跳过 LLM（定时任务实际只对首次出现的新项目调用）。
 - **数据写入**：`trending_snapshots.summary / solves`；`followed_updates.summary`
 - **依赖配置**：`ARK_API_KEY`（缺省时读 `~/.codex/auth.json` 的 `OPENAI_API_KEY`）

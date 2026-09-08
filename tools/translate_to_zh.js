@@ -12,6 +12,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const axios = require("axios");
+const { TRANSLATE_SYSTEM_PROMPT, translateUserPrompt } = require("../src/prompts");
 
 const SRC = "/tmp/starred_all.json";                    // 324 个星标项目
 const CACHE_FILE = "/tmp/zh_summary_cache.json";        // 翻译缓存（避免重复花钱）
@@ -64,26 +65,7 @@ const KEEP_WORDS = new Set([
     "llmops", "aiops", "red-team", "redteam", "qa",
     "opus", "codex", "mini", "pro", "turbo", "v1", "v2", "v3",
 ]);
-
-const SYSTEM_PROMPT = `你是一个高质量的 GitHub 项目中文翻译助手。你的任务是把给定的英文/中英混合项目描述，改写成一句自然流畅的简体中文，准确回答「这个项目解决什么问题」。
-
-严格规则：
-1. 长度 10~35 个字之间。**只输出这一句话本身，不要任何前缀、引号、后缀或解释**。
-2. **必须是完整、自然的中文句子**，不能是单词列表。
-3. 技术专有名词一律保留英文原词（不要翻译）：包括但不限于 AI、LLM、RAG、Agent、Harness、TTS、OCR、MCP、ComfyUI、LangChain、LangGraph、LangFlow、GPT、Claude、Codex、Llama、DeepSeek、Qwen、MiniMax、OpenHands、SWE-agent、MidScene、MiroFlow、MetaGPT、Headroom、AutoGPT、Ruflo、SuperPowers、PostHog、RAGFlow、WeKnora、Krona、Aider、Cursor、Copilot、GPT、Flutter、Android、iOS、React、Vue、Next.js、Docker、Kubernetes、K8s、HTTP、API、SDK、CLI、GUI、UI、RSS、JSON、SQL、SaaS、PaaS、GPT-4o 等。
-4. 中文句号、逗号、冒号正常用；不要使用英文句号。
-5. 禁止返回英文原文，禁止返回「（已翻译）」等占位词。
-6. 如果你判断描述太短或无法理解，用中文写成「（该项目暂无有效描述）」，不要编造。
-
-正确示例：
-- 输入："An agentic skills framework & software development methodology that works"
-  输出：提供 Agentic Skills 框架和配套的软件开发方法论
-- 输入："Lightweight coding agent that runs in your terminal"
-  输出：运行在你终端里的轻量编码 Agent
-- 输入："A hive mind communication platform"
-  输出：提供类似蜂巢思维的群体通信平台
-- 输入：""
-  输出：该项目暂无有效描述`;
+// 注：SYSTEM_PROMPT 已移至 src/prompts.js（TRANSLATE_SYSTEM_PROMPT）
 
 // 读入星标项目
 function loadItems() {
@@ -113,21 +95,14 @@ function log(msg) {
 async function callLLM(fullName, desc, lang, topics) {
     const key = getArkKey();
     if (!key) throw new Error("NO_ARK_KEY");
-    const userMsg =
-`项目：${fullName}
-主要语言：${lang || "未标注"}
-Topics：${(topics||[]).join(" / ") || "无"}
-英文描述：
-${desc || "(空描述)"}
-
-请输出一句 10~35 字的自然中文，说明这个项目是用来解决什么问题的。只输出这句话本身。`;
+    const userMsg = translateUserPrompt({ fullName, lang, topics, desc });
 
     const resp = await axios.post(
         `${ARK_BASE_URL}/chat/completions`,
         {
             model: ARK_MODEL,
             messages: [
-                { role: "system", content: SYSTEM_PROMPT },
+                { role: "system", content: TRANSLATE_SYSTEM_PROMPT },
                 { role: "user",   content: userMsg },
             ],
             max_tokens: 180,
