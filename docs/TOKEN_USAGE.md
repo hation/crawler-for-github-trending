@@ -1,7 +1,7 @@
 # 项目 Token 消耗说明
 
 > 本文档说明本项目在哪些环节会消耗 LLM（火山豆包）token，以及消耗量估算与优化手段。
-> 代码是权威实现（crawler.js / tracker.js / translate_to_zh.js）。
+> 代码是权威实现（src/crawler.js / src/tracker.js / tools/translate_to_zh.js）。
 
 ## 结论速览
 
@@ -24,10 +24,10 @@
 
 ## ① 唯一消耗环节：项目分析（summary + solves）
 
-位置：[crawler.js](crawler.js) 的 `analyzeProject`（约 L127-190）
+位置：[src/crawler.js](../src/crawler.js) 的 `analyzeProject`（约 L127-190）
 
 ### 触发时机
-- 每次爬取榜单（`node crawl.js <time>`），对列表中的项目生成分析
+- 每次爬取榜单（`node src/crawl.js <time>`），对列表中的项目生成分析
 - **一次 LLM 调用同时产出两个字段**：summary（一句话总结）+ solves（详细"项目解决什么问题"，50~150 字）
 - **只对缺失缓存的项目调用**（summary/solves 任一为空），已有则复用
 
@@ -40,7 +40,7 @@
 | 模型 | doubao-seed-2.0-code，thinking 禁用（防超时） |
 
 ### 缓存保护（降低消耗的关键）
-[crawler.js](crawler.js) 的 `fillReadmeSummary`：
+[src/crawler.js](../src/crawler.js) 的 `fillReadmeSummary`：
 1. **README 缓存复用**：库里已有非空 README 则直接复用，不重复抓取、不重复喂给 LLM
 2. **summary/solves 缓存复用**：任一已有则只补缺失字段；都有则完全跳过 LLM
 
@@ -51,16 +51,16 @@
 - 极端情况（全部新项目）：20 × ~2 万 token ≈ 40 万输入 token / 天
 - 常态（少量新项目）：通常几万 token / 天以内
 
-> 历史补录：`node backfill_solves.js` 对库中全部去重项目补录 solves，一次性约 176 × ~2 万 ≈ 350 万输入 token。仅手动执行。
+> 历史补录：`node src/backfill_solves.js` 对库中全部去重项目补录 solves，一次性约 176 × ~2 万 ≈ 350 万输入 token。仅手动执行。
 
 ---
 
 ## ⑥ 关注用户动态：新建仓库一句话总结（消耗 LLM）
 
-位置：[follow.js](follow.js) 的 `enrichCreateSummaries`（复用 [crawler.js](crawler.js) 的 `analyzeProject` / `fetchReadme`）
+位置：[src/follow.js](../src/follow.js) 的 `enrichCreateSummaries`（复用 [src/crawler.js](../src/crawler.js) 的 `analyzeProject` / `fetchReadme`）
 
 ### 触发时机
-- 每次扫描关注用户动态（`node follow.js 7`），对**新建仓库**（create 事件）生成一句话总结
+- 每次扫描关注用户动态（`node src/follow.js 7`），对**新建仓库**（create 事件）生成一句话总结
 - 只对库里 summary 为空的 create 事件调用；已有总结的完全跳过
 - 输入优先喂 README 全文，无 README 时仅用项目描述（token 大幅降低）
 
@@ -68,13 +68,13 @@
 - 输入 token 与 ① 相同量级（有 README ≈ 1.5 万 ~ 2 万；仅描述 ≈ 几百）
 - 关注用户新建仓库数量少（每次扫描通常 0~10 个），平时消耗很小
 
-> 历史补录：`node backfill_followed.js` 为 `followed_updates` 中全部 create 事件补 stars + summary，一次性约 52 × ~1.5 万 ≈ 80 万输入 token。仅手动执行。
+> 历史补录：`node src/backfill_followed.js` 为 `followed_updates` 中全部 create 事件补 stars + summary，一次性约 52 × ~1.5 万 ≈ 80 万输入 token。仅手动执行。
 
 ---
 
 ## ② Star 趋势追踪（不消耗 LLM）
 
-位置：[tracker.js](tracker.js)
+位置：[src/tracker.js](../src/tracker.js)
 
 - 调用 **GitHub REST API**：`GET /api.github.com/repos/{owner}/{repo}`，只取 `stargazers_count` 数字
 - 消耗的是 **GitHub API 配额**（gh token，5000 次/小时，免费），**非 LLM token**
@@ -86,8 +86,8 @@
 
 | 脚本 | 用途 | 消耗 |
 |---|---|---|
-| [translate_to_zh.js](translate_to_zh.js) | 翻译 GitHub star 项目描述为中文（如 324 个项目） | ≈ 项目数 次 LLM 调用 |
-| [fix2.js](fix2.js) | 修复个别翻译不合格项 | ≈ 1~3 次 LLM 调用 |
+| [tools/translate_to_zh.js](../tools/translate_to_zh.js) | 翻译 GitHub star 项目描述为中文（如 324 个项目） | ≈ 项目数 次 LLM 调用 |
+| [tools/fix2.js](../tools/fix2.js) | 修复个别翻译不合格项 | ≈ 1~3 次 LLM 调用 |
 
 > 这两个不在定时任务里，平时不会运行；仅在需要"把 star 项目描述翻译成中文"时手动执行。
 

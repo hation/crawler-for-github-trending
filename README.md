@@ -66,11 +66,12 @@ CREATE TABLE trending_snapshots (
 CREATE INDEX idx_snap_dim_lang_time ON trending_snapshots (dimension, language, fetched_at DESC);
 "
 ```
-> `star_history` 与 `project_track_level` 表由 `track.js` 首次运行时自动创建。
+> `star_history` 与 `project_track_level` 表由 `src/track.js` 首次运行时自动创建。
 
 ### 3. 运行 HTTP 服务
 ```bash
-node index.js            # 默认端口 3000；如被占用：PORT=3001 node index.js
+node src/index.js            # 默认端口 3000；如被占用：PORT=3001 node src/index.js
+# 或 npm start
 ```
 
 ## 环境变量（.env）
@@ -97,46 +98,62 @@ node index.js            # 默认端口 3000；如被占用：PORT=3001 node ind
 
 ```bash
 # 榜单爬取（抓取 → 补 README/总结 → 入库 → 飞书推送）
-node crawl.js daily      # daily 榜
-node crawl.js weekly     # weekly 榜
-node crawl.js monthly    # monthly 榜
+node src/crawl.js daily      # daily 榜
+node src/crawl.js weekly     # weekly 榜
+node src/crawl.js monthly    # monthly 榜
 
 # Star 趋势追踪（采样对应级别项目 + 动态调整热度级别）
-node track.js daily      # 采样 A 级（热门）
-node track.js weekly     # 采样 B 级（温和）
-node track.js monthly    # 采样 C 级（冷淡）
+node src/track.js daily      # 采样 A 级（热门）
+node src/track.js weekly     # 采样 B 级（温和）
+node src/track.js monthly    # 采样 C 级（冷淡）
 
 # 历史补录：为库中全部去重项目补录 solves（"项目解决什么问题"）
-node backfill_solves.js
+node src/backfill_solves.js
 
 # 关注用户动态扫描（新建仓库 + 发版，[--days N] 默认 7 天）
-node follow.js 7
+node src/follow.js 7
 
 # 历史补录：为关注动态的 create 事件补 stars + 一句话总结
-node backfill_followed.js
+node src/backfill_followed.js
 ```
+
+> 以上命令均有对应的 npm scripts：`npm run crawl <daily|weekly|monthly>`、`npm run track <daily|weekly|monthly>`、`npm run follow <days>`、`npm run backfill:solves`、`npm run backfill:followed`、`npm start`。
 
 ## 定时任务
 
-本项目使用 **TRAE 系统级定时自动化**（方案 B，非应用内 cron）调度，共 6 个任务：
+本项目使用 **TRAE 系统级定时自动化**（方案 B，非应用内 cron）调度，共 7 个任务：
 
 | 任务 | 时间 | 命令 |
 |---|---|---|
-| 每日 daily 榜拉取 | 每天 09:00 | `node crawl.js daily` |
-| 每周六 weekly 榜拉取 | 周六 09:30 | `node crawl.js weekly` |
-| 每月 28 日 monthly 榜拉取 | 28 日 09:30 | `node crawl.js monthly` |
-| star 趋势每日采样（A 级） | 每天 09:05 | `node track.js daily` |
-| star 趋势每周六采样（B 级） | 周六 09:35 | `node track.js weekly` |
-| star 趋势每月 28 日采样（C 级） | 28 日 09:35 | `node track.js monthly` |
-| 关注用户动态每周扫描 | 每周一 09:45 | `HTTPS_PROXY= HTTP_PROXY= node follow.js 7` |
+| 每日 daily 榜拉取 | 每天 09:00 | `node src/crawl.js daily` |
+| 每周六 weekly 榜拉取 | 周六 09:30 | `node src/crawl.js weekly` |
+| 每月 28 日 monthly 榜拉取 | 28 日 09:30 | `node src/crawl.js monthly` |
+| star 趋势每日采样（A 级） | 每天 09:05 | `node src/track.js daily` |
+| star 趋势每周六采样（B 级） | 周六 09:35 | `node src/track.js weekly` |
+| star 趋势每月 28 日采样（C 级） | 28 日 09:35 | `node src/track.js monthly` |
+| 关注用户动态每周扫描 | 每周一 09:45 | `HTTPS_PROXY= HTTP_PROXY= node src/follow.js 7` |
 
-> 完整配置与迁移步骤见 [SCHEDULED_TASKS.md](SCHEDULED_TASKS.md)
+> 完整配置与迁移步骤见 [docs/SCHEDULED_TASKS.md](docs/SCHEDULED_TASKS.md)
+
+## 项目结构
+
+```
+crawler-for-github-trending/
+├── src/          # 核心脚本与补录脚本（榜单爬取 / 趋势追踪 / 关注动态 / HTTP 服务 / 补录）
+├── tools/        # 一次性辅助脚本（Star 项目对比、翻译、Excel 导出）
+├── docs/         # 文档（功能 / 算法 / 定时任务 / Token 消耗）
+├── static/       # 静态资源
+├── README.md     # 项目总览（本文件）
+├── package.json  # 依赖与 npm scripts（start / crawl / track / follow / backfill:*）
+└── .env.example  # 环境变量示例
+```
 
 ## 文档
 
-- [ALGORITHM.md](ALGORITHM.md) —— 核心算法说明（爬取流程、动态热度分级、升降级规则、可调参数）
-- [SCHEDULED_TASKS.md](SCHEDULED_TASKS.md) —— 定时任务配置备份与迁移指南
-- [TOKEN_USAGE.md](TOKEN_USAGE.md) —— Token 消耗说明（唯一消耗环节 + 估算 + 优化手段）
+- [docs/FEATURES.md](docs/FEATURES.md) —— 功能总览（按模块整理全部功能：做什么/入口/逻辑/数据/配置）
+- [docs/ALGORITHM.md](docs/ALGORITHM.md) —— 核心算法说明（爬取流程、动态热度分级、升降级规则、可调参数）
+- [docs/SCHEDULED_TASKS.md](docs/SCHEDULED_TASKS.md) —— 定时任务配置备份与迁移指南
+- [docs/TOKEN_USAGE.md](docs/TOKEN_USAGE.md) —— Token 消耗说明（消耗环节 + 估算 + 优化手段）
 
 ## 数据说明
 

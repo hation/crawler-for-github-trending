@@ -1,6 +1,6 @@
 # GitHub Trending 爬虫 + Star 趋势追踪 —— 算法说明
 
-> 本文档描述系统的核心算法与设计决策。代码是权威实现（crawler.js / crawl.js / tracker.js / track.js），
+> 本文档描述系统的核心算法与设计决策。代码是权威实现（src/crawler.js / src/crawl.js / src/tracker.js / src/track.js），
 > 本文档帮助理解与迁移。
 >
 > 配套文件：
@@ -12,7 +12,7 @@
 
 ```
 ┌─────────────────────────────┐      ┌──────────────────────────────┐
-│  榜单爬取（crawler.js）       │      │  Star 趋势追踪（tracker.js）   │
+│  榜单爬取（src/crawler.js）   │      │  Star 趋势追踪（src/tracker.js） │
 │  每天/周六/28日 抓 Trending   │      │  每天/周六/28日 采样 star      │
 │  → 入库 + 飞书推送            │      │  → star_history + 动态分级     │
 └─────────────────────────────┘      └──────────────────────────────┘
@@ -26,7 +26,7 @@
 
 ---
 
-## 二、榜单爬取算法（crawler.js）
+## 二、榜单爬取算法（src/crawler.js）
 
 ### 2.1 流程
 ```
@@ -71,7 +71,7 @@ pushToFeishu(list, label)     仅综合榜（无语言参数）推送，聚合�
 
 ---
 
-## 三、Star 趋势追踪算法（tracker.js）⭐ 核心
+## 三、Star 趋势追踪算法（src/tracker.js）⭐ 核心
 
 ### 3.1 要解决的问题
 榜单快照只在项目**在榜当天**有数据，跌出榜单就断档。趋势追踪让项目有**连续**的 star 采样曲线，
@@ -158,11 +158,11 @@ API 连续失败 / 项目 404（已删除）→ 停止追踪。
 
 | 参数 | 位置 | 默认 | 含义 |
 |---|---|---|---|
-| HOT_DAILY_DELTA | tracker.js:17 | 50 | A 级阈值（日增 ≥ 50 每天采样） |
-| WARM_WEEKLY_DELTA | tracker.js:18 | 10 | B 级阈值（日增 ≥ 10 每周采样，低于则 C） |
-| DOWNGRADE_STREAK | tracker.js:19 | 3 | 连续几次不达标才降级 |
-| NEW_PROJECT_DAYS | tracker.js:20 | 7 | 新项目强制 A 级的天数 |
-| CACHE_TTL_MS | crawler.js | 10 分钟 | 榜单接口缓存有效期 |
+| HOT_DAILY_DELTA | src/tracker.js:17 | 50 | A 级阈值（日增 ≥ 50 每天采样） |
+| WARM_WEEKLY_DELTA | src/tracker.js:18 | 10 | B 级阈值（日增 ≥ 10 每周采样，低于则 C） |
+| DOWNGRADE_STREAK | src/tracker.js:19 | 3 | 连续几次不达标才降级 |
+| NEW_PROJECT_DAYS | src/tracker.js:20 | 7 | 新项目强制 A 级的天数 |
+| CACHE_TTL_MS | src/crawler.js | 10 分钟 | 榜单接口缓存有效期 |
 | 定时时间 | SCHEDULED_TASKS.md | 见文件 | 9:00 / 9:05 / 9:30 / 9:35 各档 |
 
-调整阈值后重新跑对应 `node track.js <period>` 即可生效（级别重算）。
+调整阈值后重新跑对应 `node src/track.js <period>` 即可生效（级别重算）。
