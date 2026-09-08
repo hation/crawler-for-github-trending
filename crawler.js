@@ -322,4 +322,4 @@ async function runCrawl(time, language) {
     return list;
 }
 
-module.exports = { runCrawl, pool, getData, analyzeProject };
+module.exports = { runCrawl, pool, getData, analyzeProject, fetchReadme };

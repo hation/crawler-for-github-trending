@@ -76,6 +76,7 @@ async function scanUser(login, since) {
                     login, repo: repo.full_name, event_type: "create",
                     event_at: repo.created_at, tag_name: null,
                     description: repo.description || "", language: repo.language || null,
+                    stars: repo.stargazers_count || 0,
                 });
             }
         }
@@ -103,6 +104,37 @@ async function scanUser(login, since) {
     return events;
 }
 
+// ===== 为新建仓库补一句话总结（复用榜单项目的豆包分析）=====
+async function enrichCreateSummaries(since) {
+    const { rows } = await pool.query(
+        `SELECT id, repo, description FROM followed_updates
+         WHERE event_type = 'create' AND (summary IS NULL OR summary = '')
+         AND event_at >= $1 ORDER BY event_at DESC`,
+        [since.toISOString()]
+    );
+    if (!rows.length) return 0;
+    console.log(`[follow] 为 ${rows.length} 个新建仓库生成一句话总结（豆包）...`);
+    let done = 0;
+    await mapLimit(rows, 3, async (row) => {
+        try {
+            // 优先喂 README，没有则仅用描述（analyzeProject 内部对 null 容错）
+            const readme = await fetchReadme(row.repo);
+            const item = { title: row.repo, description: row.description || "" };
+            const { summary } = await analyzeProject(item, readme);
+            if (summary) {
+                await pool.query(`UPDATE followed_updates SET summary = $1 WHERE id = $2`, [summary, row.id]);
+                done++;
+                console.log(`  ✓ ${row.repo}: ${summary}`);
+            } else {
+                console.log(`  - ${row.repo}: 总结为空，跳过`);
+            }
+        } catch (e) {
+            console.error(`  [ERR] ${row.repo} 总结失败: ${e.message.slice(0, 80)}`);
+        }
+    });
+    return done;
+}
+
 // ===== 飞书推送：按用户分组聚合 =====
 async function pushToFeishu(events, days) {
     if (!FEISHU_WEBHOOK || !events.length) return;
@@ -119,9 +151,13 @@ async function pushToFeishu(events, days) {
         ]);
         for (const ev of evs) {
             if (ev.event_type === "create") {
-                lines.push([{ tag: "text", text: `  🏗 新建仓库  ` }]);
-                lines.push([{ tag: "a", text: `    ${ev.repo}`, href: `https://github.com/${ev.repo}` }]);
-                if (ev.description) lines.push([{ tag: "text", text: `    💬 ${ev.description.slice(0, 60)}` }]);
+                lines.push([
+                    { tag: "text", text: "  📌 " },
+                    { tag: "a", text: ev.repo, href: `https://github.com/${ev.repo}` },
+                ]);
+                lines.push([{ tag: "text", text: `  💡 ${ev.summary || "（暂无总结）"}` }]);
+                const stars = Number(ev.stars || 0).toLocaleString("en-US");
+                lines.push([{ tag: "text", text: `  ⭐ ${stars}  ·  🗂 ${ev.language || "未知"}` }]);
             } else {
                 lines.push([{ tag: "text", text: `  🚀 发布版本 v${ev.tag_name || ""}` }]);
                 lines.push([{ tag: "a", text: `    ${ev.repo}`, href: `https://github.com/${ev.repo}` }]);
@@ -175,10 +211,10 @@ async function main() {
     for (const ev of allEvents) {
         try {
             await pool.query(
-                `INSERT INTO followed_updates (login, repo, event_type, event_at, tag_name, description, language)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7)
+                `INSERT INTO followed_updates (login, repo, event_type, event_at, tag_name, description, language, stars)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
                  ON CONFLICT (login, repo, event_type, event_at) DO NOTHING`,
-                [ev.login, ev.repo, ev.event_type, ev.event_at, ev.tag_name, ev.description || null, ev.language]
+                [ev.login, ev.repo, ev.event_type, ev.event_at, ev.tag_name, ev.description || null, ev.language, ev.stars || 0]
             );
             inserted++;
         } catch (e) {
@@ -187,9 +223,17 @@ async function main() {
     }
     console.log(`[follow] 入库 ${inserted} 条`);
 
-    // 飞书推送
-    if (allEvents.length) {
-        await pushToFeishu(allEvents, days);
+    // 为新建仓库补一句话总结（仅缺失的，已总结的复用）
+    await enrichCreateSummaries(since);
+
+    // 推送：从库里读取事件（带 summary/stars），按用户聚合推送
+    const { rows } = await pool.query(
+        `SELECT login, repo, event_type, event_at, tag_name, description, language, stars, summary
+         FROM followed_updates WHERE event_at >= $1 ORDER BY event_at DESC`,
+        [since.toISOString()]
+    );
+    if (rows.length) {
+        await pushToFeishu(rows, days);
     } else {
         console.log("[follow] 近 7 天无动态，不推送");
     }

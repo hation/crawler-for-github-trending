@@ -111,6 +111,9 @@ node backfill_solves.js
 
 # 关注用户动态扫描（新建仓库 + 发版，[--days N] 默认 7 天）
 node follow.js 7
+
+# 历史补录：为关注动态的 create 事件补 stars + 一句话总结
+node backfill_followed.js
 ```
 
 ## 定时任务

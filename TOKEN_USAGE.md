@@ -5,13 +5,16 @@
 
 ## 结论速览
 
-本项目**只有 1 个环节**消耗 LLM token：**榜单爬取时对每个项目做项目分析（一句话总结 summary + 详细"解决什么问题" solves）**。
+本项目**只有 2 个环节**消耗 LLM token：
+1. **榜单爬取时对每个项目做项目分析**（一句话总结 summary + 详细"解决什么问题" solves）
+2. **关注用户动态扫描时给新建仓库生成一句话总结**（summary）
 
 其余所有环节（Star 趋势追踪、README 抓取、HTTP 接口查询、飞书推送）均**不消耗 LLM token**。
 
 | 环节 | 是否消耗 LLM token | 消耗对象 |
 |---|---|---|
 | ① 榜单爬取：项目分析（summary + solves） | ✅ **是** | 豆包（火山方舟） |
+| ⑥ 关注用户动态：新建仓库一句话总结（summary） | ✅ **是** | 豆包（火山方舟） |
 | ② Star 趋势追踪 | ❌ 否 | GitHub REST API（免费配额） |
 | ③ README 抓取 | ❌ 否 | raw.githubusercontent.com（静态文件） |
 | ④ HTTP 接口查询 | ❌ 否 | 本机 PostgreSQL |
@@ -49,6 +52,23 @@
 - 常态（少量新项目）：通常几万 token / 天以内
 
 > 历史补录：`node backfill_solves.js` 对库中全部去重项目补录 solves，一次性约 176 × ~2 万 ≈ 350 万输入 token。仅手动执行。
+
+---
+
+## ⑥ 关注用户动态：新建仓库一句话总结（消耗 LLM）
+
+位置：[follow.js](follow.js) 的 `enrichCreateSummaries`（复用 [crawler.js](crawler.js) 的 `analyzeProject` / `fetchReadme`）
+
+### 触发时机
+- 每次扫描关注用户动态（`node follow.js 7`），对**新建仓库**（create 事件）生成一句话总结
+- 只对库里 summary 为空的 create 事件调用；已有总结的完全跳过
+- 输入优先喂 README 全文，无 README 时仅用项目描述（token 大幅降低）
+
+### 消耗估算
+- 输入 token 与 ① 相同量级（有 README ≈ 1.5 万 ~ 2 万；仅描述 ≈ 几百）
+- 关注用户新建仓库数量少（每次扫描通常 0~10 个），平时消耗很小
+
+> 历史补录：`node backfill_followed.js` 为 `followed_updates` 中全部 create 事件补 stars + summary，一次性约 52 × ~1.5 万 ≈ 80 万输入 token。仅手动执行。
 
 ---
 
