@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """对比 GitHub star 项目与本地 aiengine 目录，做 AI 相关性与分类标注"""
-import json, re, sys
+import json, re, sys, os
 from collections import Counter, defaultdict
 
-# ===== 1. 读取 star 列表（每行是一个 JSON 对象）=====
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 STARRED = []
-with open("/tmp/starred_all.json") as f:
+with open(os.path.join(DATA_DIR, "starred_all.json")) as f:
     for line in f:
         line = line.strip()
         if line:
@@ -15,7 +15,7 @@ with open("/tmp/starred_all.json") as f:
 LOCAL = {}  # repo_full -> {local_dir, remote}
 local_repo_names_lower = set()
 local_dir_by_lower_name = {}
-with open("/tmp/local_repos.txt") as f:
+with open(os.path.join(DATA_DIR, "local_repos.txt")) as f:
     for line in f:
         line = line.strip()
         if not line:
@@ -245,13 +245,13 @@ def main():
 
     print()
     print("=" * 78)
-    print("报告结束。完整 JSON → /tmp/starred_vs_local.json")
+    print("报告结束。完整 JSON → tools/data/starred_vs_local.json")
 
 out = {
     "total_starred": len(STARRED), "cloned": len(CLONED), "not_cloned": len(NOT_CLONED),
     "cloned_items": CLONED, "not_cloned_items": NOT_CLONED,
 }
-with open("/tmp/starred_vs_local.json", "w") as f:
+with open(os.path.join(DATA_DIR, "starred_vs_local.json"), "w") as f:
     json.dump(out, f, ensure_ascii=False, indent=1)
 
 main()

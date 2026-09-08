@@ -154,14 +154,37 @@
 
 ### 9. Star 项目对比辅助脚本（一次性）
 
-> 以下脚本位于 `tools/`，用于"我的 GitHub star 项目 vs 本地 aiengine 目录"的对比报告，非定时任务，仅手动运行：
+> 以下脚本位于 `tools/`，用于"我的 GitHub star 项目 vs 本地 aiengine 目录"的对比报告，非定时任务，仅手动运行。
+> 所有输入/缓存/中间产物/Excel 输出统一存于 `tools/data/`（**不写 /tmp 系统临时目录**，迁移后数据可复用）：
+
+**完整流程**：
+```
+node tools/fetch_star_inputs.js        # ① 一键生成两个输入文件（gh 拉 star + 扫描本地目录）
+node tools/translate_to_zh.js          # ②（可选）用豆包翻译描述 → starred_with_zh.json + 缓存
+python3 tools/analyze_stars.py         # ③ 对比 + 分类 → starred_vs_local.json
+python3 tools/export_excel_zh.py       # ④ 导出全中文多 Sheet Excel 报告
+```
+
+**tools/data/ 目录说明**：
+
+| 文件 | 类型 | 作用 | 生产者 |
+|---|---|---|---|
+| `starred_all.json` | 输入 | 全部 star 项目列表（每行一个 JSON） | fetch_star_inputs.js（gh API） |
+| `local_repos.txt` | 输入 | 本地克隆仓库清单（目录\|owner/repo\|remote） | fetch_star_inputs.js（扫描） |
+| `zh_summary_cache.json` | 缓存 | 翻译缓存（避免重复调豆包） | translate_to_zh.js / fix2.js |
+| `zh_summary.log` | 日志 | 翻译运行日志 | translate_to_zh.js |
+| `starred_with_zh.json` | 中间产物 | 带中文一句话说明的 star 列表 | translate_to_zh.js |
+| `starred_vs_local.json` | 中间产物 | star vs 本地克隆对比结果 | analyze_stars.py |
+| `GitHub_Star_对比报告_中文版.xlsx` | 输出 | 中文版 Excel 报告 | export_excel_zh.py |
+| `GitHub_Star_vs_Local_对比报告.xlsx` | 输出 | 英文版 Excel 报告 | export_excel.py |
 
 | 脚本 | 用途 |
 |---|---|
+| `tools/fetch_star_inputs.js` | 生成输入文件：`gh api user/starred` 拉全部 star 项目 + 扫描本地目录输出仓库清单 |
 | `tools/translate_to_zh.js` | 用豆包把 star 项目描述翻译为中文一句话说明（带本地缓存、质量校验、专有名词保留） |
 | `tools/fix2.js` | 修复个别翻译不合格项 |
 | `tools/analyze_stars.py` | 对比 star 列表与本地克隆目录，做 AI 相关性判断与分类标注 |
-| `tools/export_excel.py` / `tools/export_excel_zh.py` | 把对比结果导出为多 Sheet 中文 Excel 报告 |
+| `tools/export_excel.py` / `tools/export_excel_zh.py` | 把对比结果导出为多 Sheet 中/英文 Excel 报告 |
 
 ---
 

@@ -115,6 +115,11 @@ node src/follow.js 7
 
 # 历史补录：为关注动态的 create 事件补 stars + 一句话总结
 node src/backfill_followed.js
+
+# Star 项目对比报告（一次性，输入/缓存/输出都在 tools/data/）
+node tools/fetch_star_inputs.js     # ① 拉 star + 扫描本地目录，生成输入文件
+python3 tools/analyze_stars.py      # ② 对比 + 分类 → starred_vs_local.json
+python3 tools/export_excel_zh.py    # ③ 导出中文 Excel 报告
 ```
 
 > 以上命令均有对应的 npm scripts：`npm run crawl <daily|weekly|monthly>`、`npm run track <daily|weekly|monthly>`、`npm run follow <days>`、`npm run backfill:solves`、`npm run backfill:followed`、`npm start`。

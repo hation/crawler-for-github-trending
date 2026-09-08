@@ -7,9 +7,10 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-SRC = "/tmp/starred_vs_local.json"
-LOCAL_REPOS_TXT = "/tmp/local_repos.txt"
-OUT = "/Users/xingan/Documents/software/aiengine/GitHub_Star_vs_Local_对比报告.xlsx"
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+SRC = os.path.join(DATA_DIR, "starred_vs_local.json")
+LOCAL_REPOS_TXT = os.path.join(DATA_DIR, "local_repos.txt")
+OUT = os.path.join(DATA_DIR, "GitHub_Star_vs_Local_对比报告.xlsx")
 
 CATEGORY_CN = {
     "AI-Agent-Framework": "AI Agent 框架/Harness",

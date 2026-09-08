@@ -1,3 +1,7 @@
 /node_modules
 package-lock.json
 .env
+
+# Star 对比脚本的个人数据（star 列表 / 本地目录清单 / 缓存 / Excel），不入库
+tools/data/*
+!tools/data/.gitkeep

@@ -14,10 +14,12 @@ const path = require("path");
 const axios = require("axios");
 const { TRANSLATE_SYSTEM_PROMPT, translateUserPrompt } = require("../src/prompts");
 
-const SRC = "/tmp/starred_all.json";                    // 324 个星标项目
-const CACHE_FILE = "/tmp/zh_summary_cache.json";        // 翻译缓存（避免重复花钱）
-const OUT_JSON = "/tmp/starred_with_zh.json";           // 带中文 summary 的结果
-const LOG_FILE = "/tmp/zh_summary.log";
+// 数据目录：tools/data/（输入/缓存/日志/中间产物都在项目内）
+const DATA_DIR = path.join(__dirname, "data");
+const SRC = path.join(DATA_DIR, "starred_all.json");            // 输入：star 项目列表
+const CACHE_FILE = path.join(DATA_DIR, "zh_summary_cache.json"); // 翻译缓存（避免重复花钱）
+const OUT_JSON = path.join(DATA_DIR, "starred_with_zh.json");    // 输出：带中文 summary 的结果
+const LOG_FILE = path.join(DATA_DIR, "zh_summary.log");          // 日志
 
 const ARK_BASE_URL = process.env.ARK_BASE_URL || "https://ark.cn-beijing.volces.com/api/coding/v3";
 const ARK_MODEL = process.env.ARK_MODEL || "doubao-seed-2.0-code";

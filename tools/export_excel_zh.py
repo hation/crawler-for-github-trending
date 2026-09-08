@@ -8,10 +8,11 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-SRC_JSON = "/tmp/starred_vs_local.json"
-SRC_ZH_JSON = "/tmp/starred_with_zh.json"   # 豆包 LLM 高质量翻译结果
-LOCAL_TXT = "/tmp/local_repos.txt"
-OUT_XLSX = "/Users/xingan/Documents/software/aiengine/GitHub_Star_对比报告_中文版.xlsx"
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+SRC_JSON = os.path.join(DATA_DIR, "starred_vs_local.json")
+SRC_ZH_JSON = os.path.join(DATA_DIR, "starred_with_zh.json")   # 豆包 LLM 高质量翻译结果
+LOCAL_TXT = os.path.join(DATA_DIR, "local_repos.txt")
+OUT_XLSX = os.path.join(DATA_DIR, "GitHub_Star_对比报告_中文版.xlsx")
 
 # ---- 分类中文映射（英文编码 → 纯中文分类名） ----
 CAT_CN = {

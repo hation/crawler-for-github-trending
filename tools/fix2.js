@@ -5,10 +5,10 @@ const ARK=process.env.ARK_BASE_URL||"https://ark.cn-beijing.volces.com/api/codin
 const MODEL=process.env.ARK_MODEL||"doubao-seed-2.0-code";
 const K=process.env.ARK_API_KEY || JSON.parse(fs.readFileSync(path.join(os.homedir(),".codex","auth.json"),"utf8")).OPENAI_API_KEY;
 
-const cache = JSON.parse(fs.readFileSync("/tmp/zh_summary_cache.json","utf8"));
+const cache = JSON.parse(fs.readFileSync(path.join(__dirname,"data","zh_summary_cache.json"),"utf8"));
 const items = ["houbb/sensitive-word", "littlecodersh/ItChat"];
 const all = [];
-for(const l of fs.readFileSync("/tmp/starred_all.json","utf8").split("\n"))if(l.trim())all.push(JSON.parse(l));
+for(const l of fs.readFileSync(path.join(__dirname,"data","starred_all.json"),"utf8").split("\n"))if(l.trim())all.push(JSON.parse(l));
 
 (async()=>{
   for(const fn of items){
@@ -34,6 +34,6 @@ for(const l of fs.readFileSync("/tmp/starred_all.json","utf8").split("\n"))if(l.
     cache[fn] = {zh, reason:"ok-fixed", bad_en:0, attempts:3};
     console.log("  → 最终:", zh, "\n");
   }
-  fs.writeFileSync("/tmp/zh_summary_cache.json", JSON.stringify(cache,null,1));
+  fs.writeFileSync(path.join(__dirname,"data","zh_summary_cache.json"), JSON.stringify(cache,null,1));
   console.log("✅ 2 个修复完成，缓存已写回。");
 })().catch(e=>{console.error("ERR",e.message);process.exit(1);});
