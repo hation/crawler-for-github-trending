@@ -61,15 +61,26 @@
 - **cron**：`35 9 28 * *`（每月 28 日 09:35）
 - **命令**：`node track.js monthly`
 - **说明**（Schedule message）：
-  > 在 /Users/xingan/Documents/software/trending/crawler-for-github-trending 目录下执行 star 趋势追踪的每月任务：运行 `node track.js monthly`。该任务会自动：1) 把 trending_snapshots 中 30 天内活跃的新项目纳入追踪（幂等）；2) 采样 C 级（冷淡，近7天日增<10）项目的当前 star 数写入 star_history 表；3) 调整项目级别：C 级项目若最近一次采样日增>=50 即时升级为 A。执行完检查日志确认采样成功，如遇到 GitHub API 限流说明 gh 认证失效需处理。数据库为本机 PostgreSQL 的 github_trending 库。
+  > 在 /Users/xingan/Documents/software/trending/crawler-for-github-trending 目录下执行 star 趋势追踪的每月任务。重要：本机终端 PATH 受限，运行前必须先执行 export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"（确保 node、gh、psql 可用），并用 `which node && which gh` 确认两者都有输出（gh 位于 /usr/local/bin/gh，账号 hation 已认证）。然后运行 `node track.js monthly`。该任务会自动：1) 把 trending_snapshots 中 30 天内活跃的新项目纳入追踪（幂等）；2) 采样 C 级（冷淡，近7天日增<10）项目的当前 star 数写入 star_history 表；3) 调整项目级别：C 级项目若最近一次采样日增>=50 即时升级为 A。执行完检查日志确认采样成功（日志应出现 "level=C 完成：采样 N，失败 0"）。若日志出现大量 "403/429" 或 "gh: command not found"，说明 gh 未进入 PATH 导致 token 取不到、请求走了匿名限流，此时应先确认已 export PATH、再运行 `gh auth status` 验证认证，然后重新执行任务，不要直接判定 gh 认证失效。数据库为本机 PostgreSQL 的 github_trending 库。
 
 ---
 
-## 三、迁移步骤（换机器时）
+## 三、关注用户仓库动态扫描任务（node follow.js）
+
+### 7. 关注用户仓库动态每周扫描（发版/建仓）
+- **名称**：`关注用户仓库动态每周扫描（发版/建仓）`
+- **cron**：`45 9 * * MON`（每周一 09:45）
+- **命令**：`HTTPS_PROXY= HTTP_PROXY= node follow.js 7`
+- **说明**（Schedule message）：
+  > 在 /Users/xingan/Documents/software/trending/crawler-for-github-trending 目录下执行关注用户仓库动态扫描：运行 `HTTPS_PROXY= HTTP_PROXY= node follow.js 7`（清代理环境变量让 GitHub API 直连；若 node 不在 PATH 用完整路径）。该任务会：1) 获取当前 GitHub 账号（hation）关注的 27 个用户列表；2) 对每个用户扫描近 7 天的动态——新建仓库（repos sort=created，created_at 在 7 天内）和发布新版本（events 中的 ReleaseEvent）；3) 写入 PostgreSQL github_trending 库的 followed_updates 表（唯一约束去重，重复跳过）；4) 把动态按用户分组聚合推送飞书群。执行完确认日志出现 "[follow] 共发现 N 个动态" 和 "[feishu] push success" 即成功；如遇 GitHub API 403 说明配额或认证问题需处理。
+
+---
+
+## 四、迁移步骤（换机器时）
 
 1. `git clone git@github.com:hation/crawler-for-github-trending.git` → 代码全部回来
 2. `npm install` 安装依赖
-3. 恢复数据库：`pg_dump github_trending | psql <新库>`（含 trending_snapshots / star_history / project_track_level 三表）
+3. 恢复数据库：`pg_dump github_trending | psql <新库>`（含 trending_snapshots / star_history / project_track_level / followed_updates 四表）
 4. 配置环境变量 `.env`：`FEISHU_WEBHOOK`（飞书机器人）、`ARK_API_KEY`（豆包密钥，也可由 ~/.codex/auth.json 提供）、可选 `DATABASE_URL`
-5. 确认 `gh auth login` 已登录（track.js 采样 GitHub API 需要 token，配额 5000/小时）
-6. 在本机 TRAE 定时自动化中按本文件第一节、第二节的配置重建 6 个任务
+5. 确认 `gh auth login` 已登录（track.js / follow.js 调用 GitHub API 需要 token，配额 5000/小时）；并确保 `/usr/local/bin` 在 PATH 中（`which node && which gh` 有输出）。若 `gh` 找不到，请求会走匿名限流（403/429），表现为大量采样失败——此时先修 PATH / 认证，再运行任务
+6. 在本机 TRAE 定时自动化中按本文件第一、二、三节的重建 7 个任务

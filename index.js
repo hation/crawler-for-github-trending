@@ -103,4 +103,16 @@ app.get("/trend/:owner/:repo", async (req, res) => {
     res.json({ title, total_points: points.length, points });
 });
 
+// ===== 关注用户仓库动态（发版/建仓，followed_updates 表）=====
+app.get("/followed-updates", async (req, res) => {
+    const days = parseInt(req.query.days || "30", 10);
+    const r = await pool.query(
+        `SELECT * FROM followed_updates
+         WHERE event_at >= now() - ($1 || ' days')::interval
+         ORDER BY event_at DESC`,
+        [days]
+    );
+    res.json({ total: r.rows.length, items: r.rows });
+});
+
 app.listen(PORT, () => console.log(`Listening on port ${PORT}!`));

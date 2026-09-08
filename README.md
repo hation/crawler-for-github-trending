@@ -9,7 +9,8 @@
 - **一句话总结**：喂 README 全文给火山豆包 LLM，一次生成两个字段——一句话总结（summary）+ 详细"项目解决什么问题"（solves，面向谁/痛点/方案）
 - **飞书推送**：每次拉取成功聚合推送到飞书群（项目名 / 地址 / 一句话总结 / 当前 star / 涨了多少 star / 项目语言）
 - **Star 趋势追踪**：动态热度分级（A 每天 / B 每周六 / C 每月 28 日），连续采样项目 star 变化曲线，热门高频、冷门自动降频
-- **HTTP 接口**：榜单查询（含历史日期）、项目详情、star 趋势
+- **关注用户动态**：每周扫描关注的 GitHub 用户，监控新建仓库 + 发新版本，推送飞书
+- **HTTP 接口**：榜单查询（含历史日期）、项目详情、star 趋势、关注用户动态
 - **系统级定时任务**：TRAE 定时自动化调度（非应用内 cron），到点启动独立 CLI 进程
 
 ## 架构
@@ -90,6 +91,7 @@ node index.js            # 默认端口 3000；如被占用：PORT=3001 node ind
 | `GET /list/:time/:language` | 指定语言主题榜单，如 `/list/daily/python` |
 | `GET /repo/:owner/:repo` | 单个项目历史快照（含 README + 总结） |
 | `GET /trend/:owner/:repo` | star 趋势采样曲线（`star_history`），含每段涨跌 |
+| `GET /followed-updates?days=N` | 关注用户仓库动态（发版/建仓，`followed_updates`），默认近 30 天 |
 
 ## CLI 命令（定时任务入口）
 
@@ -106,6 +108,9 @@ node track.js monthly    # 采样 C 级（冷淡）
 
 # 历史补录：为库中全部去重项目补录 solves（"项目解决什么问题"）
 node backfill_solves.js
+
+# 关注用户动态扫描（新建仓库 + 发版，[--days N] 默认 7 天）
+node follow.js 7
 ```
 
 ## 定时任务
@@ -120,6 +125,7 @@ node backfill_solves.js
 | star 趋势每日采样（A 级） | 每天 09:05 | `node track.js daily` |
 | star 趋势每周六采样（B 级） | 周六 09:35 | `node track.js weekly` |
 | star 趋势每月 28 日采样（C 级） | 28 日 09:35 | `node track.js monthly` |
+| 关注用户动态每周扫描 | 每周一 09:45 | `HTTPS_PROXY= HTTP_PROXY= node follow.js 7` |
 
 > 完整配置与迁移步骤见 [SCHEDULED_TASKS.md](SCHEDULED_TASKS.md)
 
