@@ -103,7 +103,11 @@ function markdownToText(md) {
 // ===== 抓取 README（raw.githubusercontent.com，同样走代理，只保留纯文本内容）=====
 async function fetchReadme(ownerRepo) {
     const base = `https://raw.githubusercontent.com/${ownerRepo}/HEAD/`;
-    const candidates = ["README.md", "readme.md", "README.markdown", "README.rst"];
+    // raw.githubusercontent.com 对文件名大小写敏感，需覆盖常见 README 大小写变体
+    const candidates = [
+        "README.md", "readme.md", "Readme.md", "README.MD", "Readme.MD",
+        "README.markdown", "README.rst", "README.txt",
+    ];
     for (const file of candidates) {
         try {
             const resp = await axios.get(base + file, {
@@ -316,4 +320,4 @@ async function runCrawl(time, language) {
     return list;
 }
 
-module.exports = { runCrawl, pool, getData, analyzeProject, fetchReadme };
+module.exports = { runCrawl, pool, getData, analyzeProject, fetchReadme, pushToFeishu };

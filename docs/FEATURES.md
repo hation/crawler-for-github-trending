@@ -48,7 +48,7 @@
 - **做什么**：为每个项目抓取 README，转成纯文本（去掉样式代码、HTML 标签、脚本），保留段落结构。
 - **入口**：榜单爬取时由 `fillReadmeSummary` 自动调用；`src/follow.js` / 补录脚本也会复用。
 - **核心逻辑**（[src/crawler.js](../src/crawler.js) 的 `fetchReadme` / `markdownToText`）：
-  1. 依次尝试 `README.md / readme.md / README.markdown / README.rst` 四个文件名
+  1. 依次尝试多个 README 文件名（覆盖大小写变体）：`README.md / readme.md / Readme.md / README.MD / Readme.MD / README.markdown / README.rst / README.txt`
   2. 用 `marked` 转 HTML，cheerio 删除 script/style/img/svg/iframe，block 元素补换行保留段落
   3. 截断为前 5 万字符，避免存储与喂 LLM 过大
 - **缓存复用**：库中已有非空 README 的项目直接复用，不重复抓取

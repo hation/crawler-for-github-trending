@@ -8,7 +8,7 @@
 require("dotenv").config();
 const axios = require("axios");
 const { execSync } = require("child_process");
-const { pool } = require("./crawler");
+const { pool, analyzeProject, fetchReadme } = require("./crawler");
 
 const FEISHU_WEBHOOK = process.env.FEISHU_WEBHOOK || "";
 const GITHUB_API = "https://api.github.com";
