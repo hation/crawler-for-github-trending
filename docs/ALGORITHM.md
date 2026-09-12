@@ -166,3 +166,34 @@ API 连续失败 / 项目 404（已删除）→ 停止追踪。
 | 定时时间 | SCHEDULED_TASKS.md | 见文件 | 9:00 / 9:05 / 9:30 / 9:35 各档 |
 
 调整阈值后重新跑对应 `node src/track.js <period>` 即可生效（级别重算）。
+
+---
+
+## 六、Star 涨速排名算法（tools/star_rank.js）
+
+> 查询工具：基于第三章产出的 `star_history` 连续采样曲线做**窗口期涨速排名**（只读，不采样、不调 GitHub API）。
+
+### 6.1 统计口径
+
+```
+增量 = 最新一次采样 stars − 窗口起点前最近一次采样 stars
+```
+
+- **终点**：`star_history` 中该项目最新一条采样（`DISTINCT ON (title) ... ORDER BY title, fetched_at DESC`）
+- **起点**：`fetched_at <= now() - N 天` 的最近一条采样（N = `--days` 参数）
+- **新追踪兜底**：窗口起点前无采样（如项目刚纳入追踪、采样历史不足 N 天）→ 用 `project_track_level.base_stars` 作为起点，行尾标注「★新追踪」提示增量非完整窗口期
+- 起点与基线都取不到 → 该行不参与排名
+
+### 6.2 排名与展示
+
+- 排序：**全量**按增量降序，取前 N（`--top`，默认 20）；**含负增长**（掉星项目出现在列表底部）
+- 一句话总结：`trending_snapshots` 中该项目最新一条快照的 `summary`（缺失显示「（无总结）」）
+- 增幅列：增量 / 起点 × 100%，起点为 0 或空时显示 `—`
+- CSV 导出（`--csv`）：`tools/data/star_rank_<N>d_<日期>.csv`，UTF-8 BOM，增量不带正负号便于 Excel 计算
+
+### 6.3 与趋势追踪的关系
+
+| 环节 | 角色 |
+|---|---|
+| `src/tracker.js`（采样） | 按热度级别定期写 `star_history`，是本工具的数据来源 |
+| `tools/star_rank.js`（查询） | 纯 SQL 读取，输出增量排名，不产生任何写入 |

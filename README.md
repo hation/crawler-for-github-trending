@@ -11,6 +11,7 @@
 - **Star 趋势追踪**：动态热度分级（A 每天 / B 每周六 / C 每月 28 日），连续采样项目 star 变化曲线，热门高频、冷门自动降频
 - **关注用户动态**：每周扫描关注的 GitHub 用户，监控新建仓库 + 发新版本，推送飞书
 - **HTTP 接口**：榜单查询（含历史日期）、项目详情、star 趋势、关注用户动态
+- **涨速排名查询**：按一周/一月/近 N 天统计 star 增量 TOP N，附带一句话总结，支持导出 CSV（`tools/star_rank.js`）
 - **系统级定时任务**：TRAE 定时自动化调度（非应用内 cron），到点启动独立 CLI 进程
 
 ## 架构
@@ -120,6 +121,13 @@ node src/backfill_followed.js
 node tools/fetch_star_inputs.js     # ① 拉 star + 扫描本地目录，生成输入文件
 python3 tools/analyze_stars.py      # ② 对比 + 分类 → starred_vs_local.json
 python3 tools/export_excel_zh.py    # ③ 导出中文 Excel 报告
+
+# Star 涨速排名（一周/一月/近 N 天，含一句话总结，含负增长）
+node tools/star_rank.js --days 7 --top 20            # 近 7 天前 20 名；--days 30 看一月
+node tools/star_rank.js --days 7 --top 20 --csv      # 加 --csv 导出到 tools/data/star_rank_7d_日期.csv
+
+# Star 涨势分析数据引擎（投资分析框架第①③步：排名+赛道归类+趋势分档+时序 → 数据包）
+node tools/star_analysis.js --days 7 --top 50        # → tools/data/star_analysis_7d_日期.json
 ```
 
 > 以上命令均有对应的 npm scripts：`npm run crawl <daily|weekly|monthly>`、`npm run track <daily|weekly|monthly>`、`npm run follow <days>`、`npm run backfill:solves`、`npm run backfill:followed`、`npm start`。
@@ -145,7 +153,7 @@ python3 tools/export_excel_zh.py    # ③ 导出中文 Excel 报告
 ```
 crawler-for-github-trending/
 ├── src/          # 核心脚本与补录脚本（榜单爬取 / 趋势追踪 / 关注动态 / HTTP 服务 / 补录）
-├── tools/        # 一次性辅助脚本（Star 项目对比、翻译、Excel 导出）
+├── tools/        # 辅助脚本（Star 项目对比/翻译/Excel 导出、Star 涨速排名查询）
 ├── docs/         # 文档（功能 / 算法 / 定时任务 / Token 消耗）
 ├── static/       # 静态资源
 ├── README.md     # 项目总览（本文件）

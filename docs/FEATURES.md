@@ -8,6 +8,7 @@
 > - [ALGORITHM.md](ALGORITHM.md) —— 核心算法细节（榜单解析、热度分级）
 > - [SCHEDULED_TASKS.md](SCHEDULED_TASKS.md) —— 定时任务配置备份与迁移
 > - [TOKEN_USAGE.md](TOKEN_USAGE.md) —— LLM token 消耗说明
+> - [STAR_TREND_INVESTMENT_FRAMEWORK.md](STAR_TREND_INVESTMENT_FRAMEWORK.md) —— 涨星趋势投资分析框架（五步分析流程）
 
 ---
 
@@ -24,6 +25,8 @@
 | 7 | HTTP 查询接口 | `src/index.js` | 常驻服务 | 读取各表 |
 | 8 | 历史补录脚本 | `src/backfill_solves.js` / `src/backfill_followed.js` | 手动一次性 | 更新各表 |
 | 9 | Star 项目对比辅助脚本 | `tools/` 多个一次性脚本 | 手动 | 输出文件 |
+| 10 | Star 涨速排名查询 | `tools/star_rank.js` | 手动 CLI | 只读 `star_history` 等 |
+| 11 | Star 涨势分析数据引擎 | `tools/star_analysis.js` | 手动 CLI | 只读 + 输出 JSON 数据包 |
 
 ---
 
@@ -186,6 +189,31 @@ python3 tools/export_excel_zh.py       # ④ 导出全中文多 Sheet Excel 报�
 | `tools/analyze_stars.py` | 对比 star 列表与本地克隆目录，做 AI 相关性判断与分类标注 |
 | `tools/export_excel.py` / `tools/export_excel_zh.py` | 把对比结果导出为多 Sheet 中/英文 Excel 报告 |
 
+### 10. Star 涨速排名查询
+
+- **做什么**：按"一周 / 一月 / 近 N 天"统计 `star_history` 采样曲线中的 star 增量，输出增量降序 TOP N 列表，每行附带项目一句话总结；可选导出 CSV。
+- **入口**：`node tools/star_rank.js [--days N] [--top N] [--csv]`
+  - `--days` 窗口天数，默认 7（一周传 7、一月传 30、任意 N 天传 N）
+  - `--top` 取前 N 名，默认 20
+  - `--csv` 同时导出 `tools/data/star_rank_<N>d_<日期>.csv`（UTF-8 BOM，Excel 直接打开不乱码）
+- **核心逻辑**（[tools/star_rank.js](../tools/star_rank.js)）：
+  - **增量 = 最新一次采样 − N 天前最近一次采样**（窗口期净增长）
+  - 窗口起点前无采样的新追踪项目 → 用 `project_track_level.base_stars` 兜底，行尾标注「★新追踪」
+  - 排序范围 = **全量**按增量降序取前 N（**含负增长**，掉星项目出现在底部）
+  - 一句话总结 = 该项目的 `trending_snapshots.summary` 最新一条，中文宽度自动截断对齐
+  - **纯 SQL 查询**（复用 [src/crawler.js](../src/crawler.js) 的数据库连接池），**不调 GitHub API、不消耗 LLM token**
+- **数据写入**：无（只读）；加 `--csv` 时输出 CSV 文件到 `tools/data/`，与 Star 对比脚本产物同目录归档
+
+### 11. Star 涨势分析数据引擎
+
+- **做什么**：一键完成投资分析框架（`STAR_TREND_INVESTMENT_FRAMEWORK.md`）的第 ①③ 步本地数据收集——涨速 TOP N、赛道归类与热度汇总、趋势分档（加速/平台/回落）、关键项目日增时序。
+- **入口**：`node tools/star_analysis.js [--days N] [--top N]`（默认 7 天 / TOP 50）
+- **产出**：
+  - 终端摘要（增量合计 / 趋势分布 / 赛道热度 / 加速项目）
+  - 数据包 JSON → `tools/data/star_analysis_<N>d_<日期>.json`（`items` 每项目含 delta/last3/prev3/trend/sector/summary；`sectors` 赛道汇总；`key_series` 加速档与 TOP8 的日增时序，供画图）
+- **定位**：联网检索（② 驱动归因 / ④ 商业映射）与报告撰写由 AI 按框架文档执行，本脚本只做本地可复现的数据部分
+- **数据写入**：只读数据库；输出 JSON 到 `tools/data/`
+
 ---
 
 ## 三、数据表清单
@@ -230,4 +258,6 @@ python3 tools/export_excel_zh.py       # ④ 导出全中文多 Sheet Excel 报�
 | `src/follow.js` | 关注用户动态扫描 + 推送 |
 | `src/index.js` | HTTP 查询服务 |
 | `src/backfill_solves.js` / `src/backfill_followed.js` | 历史补录脚本 |
+| `tools/star_rank.js` | Star 涨速排名查询（一周/一月/近 N 天 TOP N，含一句话总结，可导出 CSV） |
+| `tools/star_analysis.js` | Star 涨势分析数据引擎（排名/赛道归类/趋势分档/时序 → 数据包 JSON） |
 | `tools/translate_to_zh.js` 等 | 一次性辅助脚本（Star 对比） |

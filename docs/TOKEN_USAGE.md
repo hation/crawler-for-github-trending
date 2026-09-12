@@ -9,7 +9,7 @@
 1. **榜单爬取时对每个项目做项目分析**（一句话总结 summary + 详细"解决什么问题" solves）
 2. **关注用户动态扫描时给新建仓库生成一句话总结**（summary）
 
-其余所有环节（Star 趋势追踪、README 抓取、HTTP 接口查询、飞书推送）均**不消耗 LLM token**。
+其余所有环节（Star 趋势追踪、README 抓取、HTTP 接口查询、飞书推送、Star 涨速排名查询、Star 涨势分析数据引擎）均**不消耗 LLM token**。
 
 | 环节 | 是否消耗 LLM token | 消耗对象 |
 |---|---|---|
@@ -19,6 +19,8 @@
 | ③ README 抓取 | ❌ 否 | raw.githubusercontent.com（静态文件） |
 | ④ HTTP 接口查询 | ❌ 否 | 本机 PostgreSQL |
 | ⑤ 飞书推送 | ❌ 否 | 飞书 webhook |
+| ⑦ Star 涨速排名查询（tools/star_rank.js） | ❌ 否 | 本机 PostgreSQL（纯 SQL 只读） |
+| ⑧ Star 涨势分析数据引擎（tools/star_analysis.js） | ❌ 否 | 本机 PostgreSQL（纯 SQL 只读） |
 
 ---
 

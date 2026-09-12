@@ -5,3 +5,7 @@ package-lock.json
 # Star 对比脚本的个人数据（star 列表 / 本地目录清单 / 缓存 / Excel），不入库
 tools/data/*
 !tools/data/.gitkeep
+
+# 涨星趋势分析报告结果物（每期产出，不入库）
+docs/reports/*
+!docs/reports/.gitkeep
